@@ -37,8 +37,7 @@ message(STATUS "CMAKE_SHARED_LINKER_FLAGS: ${CMAKE_SHARED_LINKER_FLAGS}")
 # Includes.
 set(XLOG_SRC_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/src/include)
 set(XLOG_TEST_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/test/include)
-set(XLOG_THIRD_PARTY_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/third_party)
-include_directories(${XLOG_SRC_INCLUDE_DIR} ${XLOG_TEST_INCLUDE_DIR} ${XLOG_THIRD_PARTY_INCLUDE_DIR})
+include_directories(${XLOG_SRC_INCLUDE_DIR} ${XLOG_TEST_INCLUDE_DIR})
 include_directories(BEFORE src) # This is needed for gtest.
 
 add_subdirectory(src)
