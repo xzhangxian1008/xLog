@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <string>
 
+// So, user can only include only one header file
+#include "xLog_middle.h"
+
 namespace xLog {
 
 enum LogLevel : uint8_t {
@@ -19,7 +22,5 @@ void SetLogFile(const std::string &file);
 void SetLogLevel(LogLevel log_level);
 
 LogLevel GetLogLevel();
-
-void Log(LogLevel log_level, const std::string &info);
 
 } // namespace xLog

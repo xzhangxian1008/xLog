@@ -14,8 +14,8 @@ XLog::XLog() :
     output_bf_offset_(0),
     log_level_(LogLevel::DEBUG)
 {
-        input_buffer_ = new char[BUFFER_SIZE];
-        output_buffer_ = new char[BUFFER_SIZE];
+    input_buffer_ = new char[BUFFER_SIZE];
+    output_buffer_ = new char[BUFFER_SIZE];
 }
 
 void XLog::Background() {
@@ -48,12 +48,8 @@ void XLog::SwapBuffer() {
     output_bf_offset_ = tmp_offset;
 }
 
-void XLog::Log(LogLevel log_level, const std::string &info) {
+void XLog::Log(const std::string &info) {
     std::unique_lock<std::mutex> ul(xlog_singleton_.lock_);
-
-    if (log_level > xlog_singleton_.log_level_) {
-        return;
-    }
 
     if (xlog_singleton_.is_input_buf_full_) {
         xlog_singleton_.buffer_full_cv_.wait(ul, [&] { return !xlog_singleton_.is_input_buf_full_; });

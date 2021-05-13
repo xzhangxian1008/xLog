@@ -60,12 +60,12 @@ public:
         xlog_singleton_.log_level_ = log_level;
     }
 
-    static LogLevel GetLogLevel() {
+    static inline LogLevel GetLogLevel() {
         std::lock_guard(xlog_singleton_.lock_);
         return xlog_singleton_.log_level_;
     }
 
-    static void Log(LogLevel log_level, const std::string &info);
+    static void Log(const std::string &info);
 
 private:
     XLog();
