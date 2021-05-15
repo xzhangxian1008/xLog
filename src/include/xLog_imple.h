@@ -65,7 +65,7 @@ public:
         return xlog_singleton_.log_level_;
     }
 
-    static void Log(const std::string &info);
+    static void Log(const char* log_store, uint32_t log_size);
 
 private:
     XLog();

@@ -48,27 +48,24 @@ void XLog::SwapBuffer() {
     output_bf_offset_ = tmp_offset;
 }
 
-void XLog::Log(const std::string &info) {
+void XLog::Log(const char* log_store, uint32_t log_size) {
     std::unique_lock<std::mutex> ul(xlog_singleton_.lock_);
 
     if (xlog_singleton_.is_input_buf_full_) {
         xlog_singleton_.buffer_full_cv_.wait(ul, [&] { return !xlog_singleton_.is_input_buf_full_; });
     }
 
-    size_t info_size = info.size();
-
     // We need a loop here because the thread may be unlucky to fail to
     // get the lock for a long time and the buffer may have been loaded
     // a lot of data during the wait.
-    while (BUFFER_SIZE - xlog_singleton_.input_bf_offset_ < info_size) {
+    while (BUFFER_SIZE - xlog_singleton_.input_bf_offset_ < log_size) {
         xlog_singleton_.is_input_buf_full_ = true;
         xlog_singleton_.buffer_full_cv_.notify_all(); // ensure the background thread could be notified
         xlog_singleton_.buffer_full_cv_.wait(ul, [&] { return !xlog_singleton_.is_input_buf_full_; });
     }
 
-    const char *info_str = info.c_str();
-    memcpy(xlog_singleton_.input_buffer_ + xlog_singleton_.input_bf_offset_, info_str, info_size);
-    xlog_singleton_.input_bf_offset_ += info_size;
+    memcpy(xlog_singleton_.input_buffer_ + xlog_singleton_.input_bf_offset_, log_store, log_size);
+    xlog_singleton_.input_bf_offset_ += log_size;
 }
 
 } // namespace xLog
