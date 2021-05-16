@@ -3,8 +3,8 @@
 
 namespace xLog {
 
-inline void SetLogFile(const std::string &file) {
-    XLog::SetLogFile(file);
+inline void SetLogFile(const char *log_file) {
+    XLog::SetOutputFile(log_file);
 }
 
 inline void SetLogLevel(LogLevel log_level) {
@@ -13,10 +13,6 @@ inline void SetLogLevel(LogLevel log_level) {
 
 inline LogLevel GetLogLevel() {
     XLog::GetLogLevel();
-}
-
-inline void Log(LogLevel log_level, const std::string &info) {
-    XLog::Log(log_level, info);
 }
 
 } // namespace xLog

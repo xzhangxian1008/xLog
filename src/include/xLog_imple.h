@@ -38,8 +38,8 @@ public:
         return &xlog_singleton_;
     }
 
-    static void SetOutputFile(std::string file) {
-        xlog_singleton_.file_io_.open(file, std::ios::in);
+    static void SetOutputFile(const char *file) {
+        xlog_singleton_.file_io_.open(std::string(file), std::ios::in);
         if (xlog_singleton_.file_io_.is_open()) {
             // the file has existed
             return;
