@@ -19,19 +19,19 @@ XLog::XLog() :
 }
 
 void XLog::Background() {
-    while (is_running_) {
-        std::unique_lock<std::mutex> ul(lock_);
-        buffer_full_cv_.wait_for(ul, std::chrono::milliseconds(100));
+    while (xlog_singleton_.is_running_) {
+        std::unique_lock<std::mutex> ul(xlog_singleton_.lock_);
+        xlog_singleton_.buffer_full_cv_.wait_for(ul, std::chrono::milliseconds(100));
 
-        if (output_bf_offset_ > 0) {
+        if (xlog_singleton_.output_bf_offset_ > 0) {
             ul.unlock();
-            file_io_.write(output_buffer_, output_bf_offset_);
-            if (file_io_.fail()) {
+            xlog_singleton_.file_io_.write(xlog_singleton_.output_buffer_, xlog_singleton_.output_bf_offset_);
+            if (xlog_singleton_.file_io_.fail()) {
                 fprintf(stderr, "Error at write(): %s\n", strerror(errno));
             }
-            file_io_.flush();
-        } else if (is_input_buf_full_) {
-            SwapBuffer();
+            xlog_singleton_.file_io_.flush();
+        } else if (xlog_singleton_.is_input_buf_full_) {
+            xlog_singleton_.SwapBuffer();
         }
     }
 }
@@ -40,7 +40,7 @@ void XLog::SwapBuffer() {
     char *tmp_str;
     tmp_str = input_buffer_;
     input_buffer_ = output_buffer_;
-    output_buffer_ = input_buffer_;
+    output_buffer_ = tmp_str;
 
     uint32_t tmp_offset;
     tmp_offset = input_bf_offset_;

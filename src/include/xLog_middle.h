@@ -38,7 +38,7 @@ uint32_t GetArgs(
         exit(-1);
     }
 
-    return args_strs.back().size(); + GetArgsSize(args_strs, args);
+    return args_strs.back().size() + GetArgsSize(args_strs, args...);
 }
 
 /**
@@ -188,7 +188,7 @@ inline void x_log(
     }
 
     std::deque<std::string> args_str;
-    uint32_t args_size = GetArgs(args_str, args);
+    uint32_t args_size = GetArgs(args_str, args...);
     uint32_t log_total_size = GetLogTotalSize(log_level, file_name, line, ret.second - 2*ret.first, args_size);
     char *log_store;
     

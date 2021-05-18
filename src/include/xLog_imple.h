@@ -9,7 +9,7 @@
 #include <chrono>
 
 #include "config.h"
-#include "xLog.h"
+#include "types.h"
 
 namespace xLog {
 
@@ -74,7 +74,7 @@ private:
     void SwapBuffer();
 
     // background thread will continously run in this function
-    void Background();
+    static void Background();
 
     std::mutex lock_;
 

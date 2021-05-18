@@ -3,24 +3,25 @@
 #include <stdint.h>
 #include <string>
 
-// So, user can only include only one header file
-#include "xLog_middle.h"
+#include "types.h"
+#include "xLog_imple.h"
 
 namespace xLog {
 
-enum LogLevel : uint8_t {
-        SILENT_LOG_LEVEL = 0,
-        ERROR,
-        WARNING,
-        NOTICE,
-        DEBUG,
-        NUM_LOG_LEVELS // must be the last element in the enum
-};
+inline void SetLogFile(const char *log_file) {
+    XLog::SetOutputFile(log_file);
+}
 
-void SetLogFile(const std::string &file);
+inline void SetLogLevel(LogLevel log_level) {
+    XLog::SetLogLevel(log_level);
+}
 
-void SetLogLevel(LogLevel log_level);
-
-LogLevel GetLogLevel();
+inline LogLevel GetLogLevel() {
+    return XLog::GetLogLevel();
+}
 
 } // namespace xLog
+
+// So, we can ensure the xLog.h can be at the 
+// beginning of the source code after preprocessing
+#include "xLog_middle.h"

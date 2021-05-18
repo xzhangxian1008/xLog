@@ -4,7 +4,7 @@
 #include "gtest/gtest.h"
 #include "xLog.h"
 
-namespace basic_test {
+namespace xLog {
 
 bool CheckLogLevel(const char* log_file, const char* target) {
     if (access(log_file, F_OK) != 0) {
@@ -23,7 +23,9 @@ bool CheckLogLevel(const char* log_file, const char* target) {
     
     char buf[target_size+1];
     buf[target_size] = 0;
-    ssize_t read_num = read(fd, buf, target_size);
+    if (read(fd, buf, target_size) == -1) {
+        return false;
+    }
     
     return strcmp(target, buf) == 0 ? true : false;
 }
@@ -110,12 +112,11 @@ TEST(BasicLogTest, BasicTest) {
     int fd = open(log_file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IXUSR);
     ASSERT_NE(-1, fd);
 
-    xLog::SetLogLevel(xLog::LogLevel::DEBUG);
-    xLog::SetLogFile(log_file);
+    SetLogLevel(LogLevel::DEBUG);
+    SetLogFile(log_file);
 
     const char *log_content = "This is a basic test log";
-
-    X_LOG(xLog::DEBUG, log_content);
+    X_LOG(DEBUG, log_content);
 
     // ensure the content has been written into the file
     fsync(fd);
