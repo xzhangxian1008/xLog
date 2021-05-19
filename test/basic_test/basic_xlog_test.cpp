@@ -11,7 +11,44 @@
 
 namespace xLog_basic_test {
 
-bool CheckLogLevel(const char* log_file, const char* target) {
+/**
+ * Only check the correctness of the logs' format
+ * 
+ * Log format example: [DEBUG] /home/xzx/main.cpp: 345: ...content...
+ */
+bool CheckFormat(const char *log) {
+    int idx = 0;
+    if (log[idx] != '[') {
+        return false;
+    }
+
+    while (log[idx] != ']' && log[idx] != 0) idx++;
+
+    if (log[idx] != ']') return false;
+    idx++;
+    if (log[idx] != ' ') return false;
+    idx++;
+    
+    while (log[idx] != ':' && log[idx] != 0) idx++;
+    if (log[idx] != ':') return false;
+    idx++;
+    if (log[idx] != ' ') return false;
+    idx++;
+
+    while (log[idx] != ':' && log[idx] != 0) {
+        if (log[idx] < '0' || log[idx] > '9') {
+            return false;
+        }
+        idx++;
+    }
+    if (log[idx] != ':') return false;
+    idx++;
+    if (log[idx] != ' ') return false;
+
+    return true;
+}
+
+bool CheckLogLevel(const char *log_file, const char *target) {
     if (access(log_file, F_OK) != 0) {
         return false;
     }
@@ -35,12 +72,13 @@ bool CheckLogLevel(const char* log_file, const char* target) {
         PRINT(read_num);
         return false;
     }
+
+
     
     return strcmp(target, buf) == 0 ? true : false;
 }
 
-
-bool CheckLogContent(const char* log_file, const char* target) {
+bool CheckLogContent(const char *log_file, const char *target) {
     if (access(log_file, F_OK) != 0) {
         return false;
     }
@@ -78,11 +116,39 @@ bool CheckLogContent(const char* log_file, const char* target) {
 }
 
 /**
+ * Data ends with '\n' will be converted to the line.
+ * '\n' should be peeled off.
+ * 
+ * @param buf store data that need to be converted
+ * @param lines container which stores the converted lines
+ */
+void GetLines(char *buf, std::vector<std::string> &lines) {
+    // refer to the head of a line
+    int start_idx = 0;
+
+    // refer to the next char of the end of a line
+    int end_idx = 0;
+
+    while (buf[end_idx] != 0) {
+        if (buf[end_idx] == '\n') {
+            // convert data to the line
+            buf[end_idx] = 0;
+            lines.emplace_back(std::string(static_cast<char *>(buf + start_idx)));
+
+            start_idx = end_idx + 1;
+            end_idx = start_idx;
+        }
+
+        end_idx++;
+    }
+}
+
+/**
  * Log format example: [DEBUG] /home/xzx/main.cpp: 345: ...content...
  * 
  * Write only one log into file
  */
-TEST(BasicLogTest, BasicTest) {
+TEST(BasicLogTest, DISABLED_BasicTest) {
     const char *log_file = "basic_log_test.txt";
     remove(log_file);
 
@@ -94,7 +160,7 @@ TEST(BasicLogTest, BasicTest) {
 
     const char *log_content = "This is a basic test log";
     X_LOG(xLog::DEBUG, log_content);
-
+    
     // ensure the content has been written into the file
     xLog::Flush();
 
@@ -105,6 +171,66 @@ TEST(BasicLogTest, BasicTest) {
     EXPECT_TRUE(CheckLogContent(log_file, content.c_str()));
 
     // remove(log_file);
+}
+
+/**
+ * Record a bunch of logs in a single thread
+ */
+TEST(BasicLogTest, SingleThreadManyLogsTest) {
+    const char *log_file = "single_thd_many_logs_test.txt";
+    remove(log_file);
+
+    // create file
+    std::fstream file_io_(log_file, std::ios::in | std::ios::out | std::ios::trunc);
+
+    xLog::SetLogLevel(xLog::LogLevel::DEBUG);
+    xLog::SetLogFile(log_file);
+
+    // create a lot of logs
+    int log_num = 1000000;
+    std::string log_content("pretend to have many many info...");
+    for (int i = 0; i < log_num; i++) {
+        X_LOG(xLog::LogLevel::DEBUG, log_content.c_str());
+    }
+
+    // ensure the content has been written into the file
+    xLog::Flush();
+
+    int read_buf_size = 100000;
+    char buf[read_buf_size + 1];
+    memset(buf, 0, read_buf_size + 1);
+    std::vector<std::string> lines;
+
+    // read all the logs and check their formats
+    file_io_.seekp(0);
+    file_io_.read(buf, read_buf_size);
+    int read_cnt = file_io_.gcount();
+    while (read_cnt > 0) {
+        GetLines(buf, lines);
+        memset(buf + read_cnt, 0, read_buf_size - read_cnt);
+        if (buf[read_cnt - 1] != '\n') {
+            // We read an incomplete log
+            // Back the cursor to the head of the log
+            
+        }
+        read_cnt = file_io_.gcount();
+    }
+
+    // bool ok = true;
+    // for (auto &line : lines) {
+    //     if (!CheckFormat(line.c_str())) {
+    //         ok = false;
+    //         break;
+    //     }
+    // }
+    // EXPECT_TRUE(ok);
+}
+
+/**
+ * Record a bunch of logs in multi-threads
+ */
+TEST(BasicLogTest, DISABLED_MultiThreadManyLogsTest) {
+
 }
 
 } // namespace basic_test

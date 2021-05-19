@@ -31,9 +31,12 @@ void XLog::Background() {
                 fprintf(stderr, "xLog: write log fail in background thread\n");
                 exit(-1);
             }
-            xlog_singleton_.file_io_.flush();
+            xlog_singleton_.output_bf_offset_ = 0;
         } else if (xlog_singleton_.is_input_buf_full_) {
             xlog_singleton_.SwapBuffer();
+            xlog_singleton_.is_input_buf_full_ = false;
+            xlog_singleton_.input_bf_offset_ = 0;
+            xlog_singleton_.buffer_full_cv_.notify_all();
         }
     }
 }
@@ -73,12 +76,9 @@ void XLog::Log(const char* log_store, uint32_t log_size) {
 void XLog::Flush() {
     std::lock_guard lg(xlog_singleton_.lock_);
 
-    // PRINT(xlog_singleton_.input_bf_offset_);
-    // PRINT(xlog_singleton_.input_buffer_);
-    // PRINT(xlog_singleton_.output_bf_offset_);
-
     // flush input buffer
     if (xlog_singleton_.input_bf_offset_ > 0) {
+        xlog_singleton_.input_buffer_[xlog_singleton_.input_bf_offset_] = 0;
         xlog_singleton_.file_io_.write(xlog_singleton_.input_buffer_, xlog_singleton_.input_bf_offset_);
         xlog_singleton_.input_bf_offset_ = 0;
         xlog_singleton_.is_input_buf_full_ = false;
@@ -88,6 +88,7 @@ void XLog::Flush() {
     if (xlog_singleton_.output_bf_offset_ > 0) {
         xlog_singleton_.file_io_.write(xlog_singleton_.output_buffer_, xlog_singleton_.output_bf_offset_);
         xlog_singleton_.output_bf_offset_ = 0;
+
     }
     
     if (IsIOFail(xlog_singleton_.file_io_)) {
@@ -97,12 +98,6 @@ void XLog::Flush() {
 
     // write content to disk
     xlog_singleton_.file_io_.flush();
-
-    // xlog_singleton_.file_io_.seekp(0);
-    // char buf[100];
-    // memset(buf, 0, 100);
-    // xlog_singleton_.file_io_.read(buf, 100);
-    // std::cout << buf << std::endl;
 }
 
 } // namespace xLog

@@ -47,6 +47,10 @@ public:
     static void SetOutputFile(const char *file) {
         std::lock_guard(xlog_singleton_.lock_);
 
+        if (xlog_singleton_.file_io_.is_open()) {
+            xlog_singleton_.file_io_.close();
+        }
+
         xlog_singleton_.file_io_.open(file, std::ios::in | std::ios::out);
         if (!xlog_singleton_.file_io_.is_open()) {
             // create file
