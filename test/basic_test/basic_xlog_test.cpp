@@ -1,10 +1,15 @@
 #include <unistd.h>
 #include <fcntl.h>
+#include <iostream>
+#include <unistd.h>
+#include <string>
+#include <unistd.h>
 
 #include "gtest/gtest.h"
 #include "xLog.h"
+#include "util.h"
 
-namespace xLog {
+namespace xLog_basic_test {
 
 bool CheckLogLevel(const char* log_file, const char* target) {
     if (access(log_file, F_OK) != 0) {
@@ -22,46 +27,18 @@ bool CheckLogLevel(const char* log_file, const char* target) {
     }
     
     char buf[target_size+1];
-    buf[target_size] = 0;
-    if (read(fd, buf, target_size) == -1) {
+    memset(buf, 0, target_size+1);
+    
+    lseek(fd, 0, SEEK_SET);
+    int read_num = read(fd, buf, target_size);
+    if (read_num != target_size) {
+        PRINT(read_num);
         return false;
     }
     
     return strcmp(target, buf) == 0 ? true : false;
 }
 
-bool CheckLogFile(const char* log_file, const char* target) {
-    if (access(log_file, F_OK) != 0) {
-        return false;
-    }
-
-    int fd = open(log_file, O_RDONLY);
-    if (fd == -1) {
-        return false;
-    }
-
-    int file_name_size = 0;
-    while (target[file_name_size] != 0) {
-        file_name_size++;
-    }
-
-    // According to the log format, there are some log level data before the file name.
-    // 20 is definitely long enough to store these data.
-    char buf[20 + file_name_size];
-    memset(buf, 0, 20 + file_name_size);
-
-    if (read(fd, buf, 20 + file_name_size) == -1) {
-        return -1;
-    }
-
-    int file_start_idx = 0;
-    while (buf[file_start_idx] != ' ') {
-        file_start_idx++;
-    }
-    file_start_idx++;
-
-    return strcmp(target, buf + file_start_idx) == 0 ? true : false;
-}
 
 bool CheckLogContent(const char* log_file, const char* target) {
     if (access(log_file, F_OK) != 0) {
@@ -84,7 +61,7 @@ bool CheckLogContent(const char* log_file, const char* target) {
     memset(buf, 0, 100 + content_size);
 
     if (read(fd, buf, 100 + content_size) == -1) {
-        return -1;
+        return false;
     }
 
     int content_start_idx = 0;
@@ -95,8 +72,9 @@ bool CheckLogContent(const char* log_file, const char* target) {
             space--;
         }
     }
+    content_start_idx++;
 
-    return strcmp(target, buf + content_start_idx) == 0 ? true : false;;
+    return strcmp(target, buf + content_start_idx) == 0 ? true : false;
 }
 
 /**
@@ -109,24 +87,24 @@ TEST(BasicLogTest, BasicTest) {
     remove(log_file);
 
     // create file
-    int fd = open(log_file, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IXUSR);
-    ASSERT_NE(-1, fd);
+    std::fstream file_io_(log_file, std::ios::in | std::ios::out | std::ios::trunc);
 
-    SetLogLevel(LogLevel::DEBUG);
-    SetLogFile(log_file);
+    xLog::SetLogLevel(xLog::LogLevel::DEBUG);
+    xLog::SetLogFile(log_file);
 
     const char *log_content = "This is a basic test log";
-    X_LOG(DEBUG, log_content);
+    X_LOG(xLog::DEBUG, log_content);
 
     // ensure the content has been written into the file
-    fsync(fd);
+    xLog::Flush();
 
     EXPECT_TRUE(CheckLogLevel(log_file, "[DEBUG]"));
-    EXPECT_TRUE(CheckLogFile(log_file, log_file));
-    EXPECT_TRUE(CheckLogContent(log_file, log_content));
 
-    close(fd);
-    remove(log_file);
+    std::string content(log_content);
+    content.append("\n");
+    EXPECT_TRUE(CheckLogContent(log_file, content.c_str()));
+
+    // remove(log_file);
 }
 
 } // namespace basic_test

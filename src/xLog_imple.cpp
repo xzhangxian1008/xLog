@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "xLog_imple.h"
+#include "util.h"
 
 namespace xLog {
 
@@ -26,8 +27,9 @@ void XLog::Background() {
         if (xlog_singleton_.output_bf_offset_ > 0) {
             ul.unlock();
             xlog_singleton_.file_io_.write(xlog_singleton_.output_buffer_, xlog_singleton_.output_bf_offset_);
-            if (xlog_singleton_.file_io_.fail()) {
-                fprintf(stderr, "Error at write(): %s\n", strerror(errno));
+            if (IsIOFail(xlog_singleton_.file_io_)) {
+                fprintf(stderr, "xLog: write log fail in background thread\n");
+                exit(-1);
             }
             xlog_singleton_.file_io_.flush();
         } else if (xlog_singleton_.is_input_buf_full_) {
@@ -66,6 +68,41 @@ void XLog::Log(const char* log_store, uint32_t log_size) {
 
     memcpy(xlog_singleton_.input_buffer_ + xlog_singleton_.input_bf_offset_, log_store, log_size);
     xlog_singleton_.input_bf_offset_ += log_size;
+}
+
+void XLog::Flush() {
+    std::lock_guard lg(xlog_singleton_.lock_);
+
+    // PRINT(xlog_singleton_.input_bf_offset_);
+    // PRINT(xlog_singleton_.input_buffer_);
+    // PRINT(xlog_singleton_.output_bf_offset_);
+
+    // flush input buffer
+    if (xlog_singleton_.input_bf_offset_ > 0) {
+        xlog_singleton_.file_io_.write(xlog_singleton_.input_buffer_, xlog_singleton_.input_bf_offset_);
+        xlog_singleton_.input_bf_offset_ = 0;
+        xlog_singleton_.is_input_buf_full_ = false;
+    }
+
+    // flush output buffer
+    if (xlog_singleton_.output_bf_offset_ > 0) {
+        xlog_singleton_.file_io_.write(xlog_singleton_.output_buffer_, xlog_singleton_.output_bf_offset_);
+        xlog_singleton_.output_bf_offset_ = 0;
+    }
+    
+    if (IsIOFail(xlog_singleton_.file_io_)) {
+        fprintf(stderr, "xLog: Flush io fail\n");
+        exit(-1);
+    }
+
+    // write content to disk
+    xlog_singleton_.file_io_.flush();
+
+    // xlog_singleton_.file_io_.seekp(0);
+    // char buf[100];
+    // memset(buf, 0, 100);
+    // xlog_singleton_.file_io_.read(buf, 100);
+    // std::cout << buf << std::endl;
 }
 
 } // namespace xLog

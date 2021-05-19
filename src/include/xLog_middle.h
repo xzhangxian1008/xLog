@@ -95,7 +95,8 @@ uint32_t GetLogTotalSize(
     }
     total_size += file_name_size;
 
-    return total_size + std::to_string(line).size();
+    // add 1 for '\n'
+    return total_size + std::to_string(line).size() + 1;
 }
 
 void Log(
@@ -158,6 +159,7 @@ void Log(
         args_str.pop_front();
         format_idx += 2;
     }
+    log_store[idx++] = '\n';
 
     // Now, we have load all the log data into memory.
     XLog::Log(log_store, log_size);
@@ -209,7 +211,7 @@ inline void x_log(
 }
 
 #define X_LOG(log_level, format, ...) do {\
-    x_log(log_level, __FILE__, __LINE__, format, ##__VA_ARGS__);\
+    xLog::x_log(log_level, __FILE__, __LINE__, format, ##__VA_ARGS__);\
 } while(0);
 
 } // namespace xLog

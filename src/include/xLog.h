@@ -20,6 +20,10 @@ inline LogLevel GetLogLevel() {
     return XLog::GetLogLevel();
 }
 
+inline void Flush() {
+    XLog::Flush();
+}
+
 } // namespace xLog
 
 // So, we can ensure the xLog.h can be at the 

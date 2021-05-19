@@ -10,22 +10,25 @@
 
 #include "config.h"
 #include "types.h"
+#include "util.h"
 
 namespace xLog {
 
 class XLog {
 public:
     ~XLog() {
-        if (!file_io_.is_open()) {
-            file_io_.close();
-        }
-
         is_running_ = false;
 
         if (background_thread_.joinable()) {
             background_thread_.join();
         }
 
+        file_io_.flush();
+
+        if (!file_io_.is_open()) {
+            file_io_.close();
+        }
+        
         delete[] input_buffer_;
         delete[] output_buffer_;
     }
@@ -38,21 +41,24 @@ public:
         return &xlog_singleton_;
     }
 
+    /**
+     * Need an empty file
+     */
     static void SetOutputFile(const char *file) {
-        xlog_singleton_.file_io_.open(std::string(file), std::ios::in);
-        if (xlog_singleton_.file_io_.is_open()) {
-            // the file has existed
-            return;
+        std::lock_guard(xlog_singleton_.lock_);
+
+        xlog_singleton_.file_io_.open(file, std::ios::in | std::ios::out);
+        if (!xlog_singleton_.file_io_.is_open()) {
+            // create file
+            xlog_singleton_.file_io_.open(file, std::ios::in | std::ios::out | std::ios::trunc);
+            if (!xlog_singleton_.file_io_) {
+                std::string err("Unable to create the log file:");
+                err.append(file);
+                throw std::ios_base::failure(err);
+            }
         }
 
-        // create the file
-        std::ios_base::openmode om = std::ios::in | std::ios::out | std::ios::trunc;
-        xlog_singleton_.file_io_.open(file, om);
-        if (!xlog_singleton_.file_io_.is_open()) {
-            std::string err("Unable to create the log file:");
-            err.append(file);
-            throw std::ios_base::failure(err);
-        }
+        xlog_singleton_.file_io_.seekg(0, std::ios::beg);
     }
 
     static void SetLogLevel(LogLevel log_level) {
@@ -64,6 +70,12 @@ public:
         std::lock_guard(xlog_singleton_.lock_);
         return xlog_singleton_.log_level_;
     }
+
+    /**
+     *  This function will hold the lock and flush all buffers by
+     *  the calling thread which will be blocked during the flushing.
+     */
+    static void Flush();
 
     static void Log(const char* log_store, uint32_t log_size);
 
