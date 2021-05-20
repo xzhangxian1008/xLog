@@ -15,7 +15,15 @@ enum Type : uint8_t {
     STRING
 };
 
-uint32_t GetArgs(std::deque<std::string>& args_strs) {
+inline std::string Convert2Str(int x) {
+    return std::to_string(x);
+}
+
+inline std::string Convert2Str(const char *str) {
+    return std::string(str);
+}
+
+inline uint32_t GetArgs(std::deque<std::string>& args_strs) {
     return 0;
 }
 
@@ -28,17 +36,8 @@ uint32_t GetArgs(
     const T& p,
     const Types... args)
 {
-    if (typeid(p) == typeid(int)) {
-        args_strs.push_back(std::to_string(p));
-    } else if (typeid(p) == typeid(char*)) {
-        args_strs.push_back(std::string(p));
-    } else {
-        // TODO Maybe we can handle this exception more elegantly
-        fprintf(stderr, "xLOG: Not support %s", typeid(p).name());
-        exit(-1);
-    }
-
-    return args_strs.back().size() + GetArgsSize(args_strs, args...);
+    args_strs.push_back(Convert2Str(p));
+    return args_strs.back().size() + GetArgs(args_strs, args...);
 }
 
 /**

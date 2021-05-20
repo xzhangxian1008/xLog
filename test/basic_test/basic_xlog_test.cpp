@@ -15,6 +15,8 @@ namespace xLog_basic_test {
  * Only check the correctness of the logs' format
  * 
  * Log format example: [DEBUG] /home/xzx/main.cpp: 345: ...content...
+ * 
+ * @return true: ok, false: invalid format
  */
 bool CheckFormat(const char *log) {
     int idx = 0;
@@ -48,46 +50,23 @@ bool CheckFormat(const char *log) {
     return true;
 }
 
-bool CheckLogLevel(const char *log_file, const char *target) {
-    if (access(log_file, F_OK) != 0) {
-        return false;
-    }
-
-    int fd = open(log_file, O_RDONLY);
-    if (fd == -1) {
-        return false;
-    }
-
+bool CheckLogLevel(const char *log, const char *target) {
     ssize_t target_size = 0;
     while (target[target_size] != 0) {
         target_size++;
     }
     
-    char buf[target_size+1];
-    memset(buf, 0, target_size+1);
-    
-    lseek(fd, 0, SEEK_SET);
-    int read_num = read(fd, buf, target_size);
-    if (read_num != target_size) {
-        PRINT(read_num);
-        return false;
+    char buf[target_size + 1];
+    memset(buf, 0, target_size + 1);
+
+    for (int i = 0; i < target_size; i++) {
+        buf[i] = log[i];
     }
-
-
     
     return strcmp(target, buf) == 0 ? true : false;
 }
 
-bool CheckLogContent(const char *log_file, const char *target) {
-    if (access(log_file, F_OK) != 0) {
-        return false;
-    }
-
-    int fd = open(log_file, O_RDONLY);
-    if (fd == -1) {
-        return false;
-    }
-
+bool CheckLogContent(const char *log, const char *target) {
     int content_size = 0;
     while (target[content_size] != 0) {
         content_size++;
@@ -95,24 +74,24 @@ bool CheckLogContent(const char *log_file, const char *target) {
 
     // According to the log format, there are some log level data before the file name.
     // 100 is definitely long enough to store these data.
-    char buf[100 + content_size];
-    memset(buf, 0, 100 + content_size);
-
-    if (read(fd, buf, 100 + content_size) == -1) {
-        return false;
-    }
+    char buf[content_size + 1];
+    memset(buf, 0, content_size + 1);
 
     int content_start_idx = 0;
     int space = 3;
     while (space > 0) {
         content_start_idx++;
-        if (buf[content_start_idx] == ' ') {
+        if (log[content_start_idx] == ' ') {
             space--;
         }
     }
     content_start_idx++;
 
-    return strcmp(target, buf + content_start_idx) == 0 ? true : false;
+    for (int i = 0; i < content_size; i++) {
+        buf[i] = log[content_start_idx + i];
+    }
+
+    return strcmp(target, buf) == 0 ? true : false;
 }
 
 /**
@@ -148,7 +127,7 @@ void GetLines(char *buf, std::vector<std::string> &lines) {
  * 
  * Write only one log into file
  */
-TEST(BasicLogTest, DISABLED_BasicTest) {
+TEST(BasicLogTest, BasicTest) {
     const char *log_file = "basic_log_test.txt";
     remove(log_file);
 
@@ -158,19 +137,49 @@ TEST(BasicLogTest, DISABLED_BasicTest) {
     xLog::SetLogLevel(xLog::LogLevel::DEBUG);
     xLog::SetLogFile(log_file);
 
-    const char *log_content = "This is a basic test log";
-    X_LOG(xLog::DEBUG, log_content);
+    const char *log1_content = "This is log1";
+    const char *log1_level = "[DEBUG]";
+
+    const char *log2_content = "This is log2";
+    const char *log2_level = "[NOTICE]";
+
+    const char *log3_content = "This is log3";
+    const char *log3_level = "[WARNING]";
+
+    const char *log4_content = "This is log4";
+    const char *log4_level = "[ERROR]";
+
+    X_LOG(xLog::DEBUG, log1_content);
+    X_LOG(xLog::NOTICE, "This %s log%d", "is", 2);
+    X_LOG(xLog::WARNING, "This is %s%d", "log", 3);
+    X_LOG(xLog::ERROR, "%s %s %s%d", "This", "is", "log", 4);
     
     // ensure the content has been written into the file
     xLog::Flush();
 
-    EXPECT_TRUE(CheckLogLevel(log_file, "[DEBUG]"));
+    // I think it's large enough to store all the logs
+    int buf_size = 10000;
+    char buf[buf_size + 1];
+    memset(buf, 0, buf_size + 1);
+    file_io_.read(buf, buf_size);
 
-    std::string content(log_content);
-    content.append("\n");
-    EXPECT_TRUE(CheckLogContent(log_file, content.c_str()));
+    std::vector<std::string> lines;
+    GetLines(buf, lines);
+    ASSERT_EQ(lines.size(), 4);
 
-    // remove(log_file);
+    EXPECT_TRUE(CheckLogLevel(lines[0].c_str(), log1_level));
+    EXPECT_TRUE(CheckLogContent(lines[0].c_str(), log1_content));
+
+    EXPECT_TRUE(CheckLogLevel(lines[1].c_str(), log2_level));
+    EXPECT_TRUE(CheckLogContent(lines[1].c_str(), log2_content));
+
+    EXPECT_TRUE(CheckLogLevel(lines[2].c_str(), log3_level));
+    EXPECT_TRUE(CheckLogContent(lines[2].c_str(), log3_content));
+
+    EXPECT_TRUE(CheckLogLevel(lines[3].c_str(), log4_level));
+    EXPECT_TRUE(CheckLogContent(lines[3].c_str(), log4_content));
+
+    remove(log_file);
 }
 
 /**
@@ -187,9 +196,9 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
     xLog::SetLogFile(log_file);
 
     // create a lot of logs
-    int log_num = 1000000;
+    size_t log_num = 1000000;
     std::string log_content("pretend to have many many info...");
-    for (int i = 0; i < log_num; i++) {
+    for (size_t i = 0; i < log_num; i++) {
         X_LOG(xLog::LogLevel::DEBUG, log_content.c_str());
     }
 
@@ -209,21 +218,33 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
         GetLines(buf, lines);
         memset(buf + read_cnt, 0, read_buf_size - read_cnt);
         if (buf[read_cnt - 1] != '\n') {
-            // We read an incomplete log
-            // Back the cursor to the head of the log
-            
+            // Get an incomplete log, then back the cursor to the head of the log
+            int back_step_num = 1;
+
+            // NOTICE ensure read_buf_size > log size
+            // Size of the log should be smaller than the
+            // buf read_buf_size or it will cause some problems
+            while (buf[read_cnt - back_step_num] != '\n') {
+                back_step_num++;
+            }
+            back_step_num--;
+
+            file_io_.seekp(-1 * back_step_num, std::ios::cur);
         }
         read_cnt = file_io_.gcount();
     }
 
-    // bool ok = true;
-    // for (auto &line : lines) {
-    //     if (!CheckFormat(line.c_str())) {
-    //         ok = false;
-    //         break;
-    //     }
-    // }
-    // EXPECT_TRUE(ok);
+    bool ok = true;
+    if (lines.size() != log_num) {
+        ok = false;
+    }
+
+    for (size_t i = 0; i < log_num && ok; i++) {
+        if (!CheckFormat(lines[i].c_str())) {
+            ok = false;
+        }
+    }
+    EXPECT_TRUE(ok);
 }
 
 /**
