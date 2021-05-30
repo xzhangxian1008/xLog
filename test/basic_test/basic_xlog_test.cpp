@@ -101,18 +101,19 @@ bool CheckLogContent(const char *log, const char *target) {
  * @param buf store data that need to be converted
  * @param lines container which stores the converted lines
  */
-void GetLines(char *buf, std::vector<std::string> &lines) {
+void GetLines(char *buf, int max_size, std::vector<std::string> &lines) {
     // refer to the head of a line
     int start_idx = 0;
 
     // refer to the next char of the end of a line
     int end_idx = 0;
 
-    while (buf[end_idx] != 0) {
+    while (end_idx < max_size && buf[end_idx] != 0) {
         if (buf[end_idx] == '\n') {
             // convert data to the line
             buf[end_idx] = 0;
             lines.emplace_back(std::string(static_cast<char *>(buf + start_idx)));
+            buf[end_idx] = '\n';
 
             start_idx = end_idx + 1;
             end_idx = start_idx;
@@ -164,7 +165,7 @@ TEST(BasicLogTest, BasicTest) {
     file_io_.read(buf, buf_size);
 
     std::vector<std::string> lines;
-    GetLines(buf, lines);
+    GetLines(buf, buf_size + 1, lines);
     ASSERT_EQ(lines.size(), 4);
 
     EXPECT_TRUE(CheckLogLevel(lines[0].c_str(), log1_level));
@@ -215,9 +216,9 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
     file_io_.read(buf, read_buf_size);
     int read_cnt = file_io_.gcount();
     while (read_cnt > 0) {
-        GetLines(buf, lines);
-        memset(buf + read_cnt, 0, read_buf_size - read_cnt);
-        if (buf[read_cnt - 1] != '\n') {
+        GetLines(buf, read_buf_size + 1, lines);
+
+        if (buf[read_cnt - 1] != 0) {
             // Get an incomplete log, then back the cursor to the head of the log
             int back_step_num = 1;
 
@@ -231,6 +232,8 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
 
             file_io_.seekp(-1 * back_step_num, std::ios::cur);
         }
+        memset(buf, 0, read_buf_size + 1);
+        file_io_.read(buf, read_buf_size);
         read_cnt = file_io_.gcount();
     }
 
@@ -241,6 +244,7 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
 
     for (size_t i = 0; i < log_num && ok; i++) {
         if (!CheckFormat(lines[i].c_str())) {
+            PRINT("here");
             ok = false;
         }
     }
@@ -251,7 +255,9 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
  * Record a bunch of logs in multi-threads
  */
 TEST(BasicLogTest, DISABLED_MultiThreadManyLogsTest) {
+    int thread_num = 8;
 
+    
 }
 
 } // namespace basic_test
