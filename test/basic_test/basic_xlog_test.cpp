@@ -4,6 +4,10 @@
 #include <unistd.h>
 #include <string>
 #include <unistd.h>
+#include <thread>
+#include <vector>
+#include <condition_variable>
+#include <chrono>
 
 #include "gtest/gtest.h"
 #include "xLog.h"
@@ -124,6 +128,41 @@ void GetLines(char *buf, int max_size, std::vector<std::string> &lines) {
 }
 
 /**
+ * Logs will be converted to std::string and pushed into std::vector
+ */
+void GetAllLogs(std::vector<std::string> &lines, std::fstream &file_io_) {
+    int read_buf_size = 100000;
+    char buf[read_buf_size + 1];
+    memset(buf, 0, read_buf_size + 1);
+
+    // read all the logs and check their formats
+    file_io_.seekp(0);
+    file_io_.read(buf, read_buf_size);
+    int read_cnt = file_io_.gcount();
+    while (read_cnt > 0) {
+        GetLines(buf, read_buf_size + 1, lines);
+
+        if (buf[read_cnt - 1] != 0) {
+            // Get an incomplete log, then back the cursor to the head of the log
+            int back_step_num = 1;
+
+            // NOTICE ensure read_buf_size > log size
+            // Size of the log should be smaller than the
+            // buf read_buf_size or it will cause some problems
+            while (buf[read_cnt - back_step_num] != '\n') {
+                back_step_num++;
+            }
+            back_step_num--;
+
+            file_io_.seekp(-1 * back_step_num, std::ios::cur);
+        }
+        memset(buf, 0, read_buf_size + 1);
+        file_io_.read(buf, read_buf_size);
+        read_cnt = file_io_.gcount();
+    }
+}
+
+/**
  * Log format example: [DEBUG] /home/xzx/main.cpp: 345: ...content...
  * 
  * Write only one log into file
@@ -184,7 +223,7 @@ TEST(BasicLogTest, BasicTest) {
 }
 
 /**
- * Record a bunch of logs in a single thread
+ * Record a bunch of logs with a single thread
  */
 TEST(BasicLogTest, SingleThreadManyLogsTest) {
     const char *log_file = "single_thd_many_logs_test.txt";
@@ -206,36 +245,8 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
     // ensure the content has been written into the file
     xLog::Flush();
 
-    int read_buf_size = 100000;
-    char buf[read_buf_size + 1];
-    memset(buf, 0, read_buf_size + 1);
     std::vector<std::string> lines;
-
-    // read all the logs and check their formats
-    file_io_.seekp(0);
-    file_io_.read(buf, read_buf_size);
-    int read_cnt = file_io_.gcount();
-    while (read_cnt > 0) {
-        GetLines(buf, read_buf_size + 1, lines);
-
-        if (buf[read_cnt - 1] != 0) {
-            // Get an incomplete log, then back the cursor to the head of the log
-            int back_step_num = 1;
-
-            // NOTICE ensure read_buf_size > log size
-            // Size of the log should be smaller than the
-            // buf read_buf_size or it will cause some problems
-            while (buf[read_cnt - back_step_num] != '\n') {
-                back_step_num++;
-            }
-            back_step_num--;
-
-            file_io_.seekp(-1 * back_step_num, std::ios::cur);
-        }
-        memset(buf, 0, read_buf_size + 1);
-        file_io_.read(buf, read_buf_size);
-        read_cnt = file_io_.gcount();
-    }
+    GetAllLogs(lines, file_io_);
 
     bool ok = true;
     if (lines.size() != log_num) {
@@ -244,20 +255,85 @@ TEST(BasicLogTest, SingleThreadManyLogsTest) {
 
     for (size_t i = 0; i < log_num && ok; i++) {
         if (!CheckFormat(lines[i].c_str())) {
-            PRINT("here");
             ok = false;
         }
     }
     EXPECT_TRUE(ok);
+    remove(log_file);
 }
 
 /**
- * Record a bunch of logs in multi-threads
+ * Record a bunch of logs with multi-threads
  */
-TEST(BasicLogTest, DISABLED_MultiThreadManyLogsTest) {
-    int thread_num = 8;
+TEST(BasicLogTest, MultiThreadManyLogsTest) {
+    const char *log_file = "multi_thd_many_logs_test.txt";
+    remove(log_file);
 
+    // create file
+    std::fstream file_io_(log_file, std::ios::in | std::ios::out | std::ios::trunc);
+
+    xLog::SetLogLevel(xLog::LogLevel::DEBUG);
+    xLog::SetLogFile(log_file);
+
+    // total number of threads
+    int thread_num = 8;
+    // number of threads that finish all the works
+    int finish_num = 0;
+    // log number that every thread should record
+    int log_num = 500000;
+    std::vector<std::thread> threads;
+    std::condition_variable cond;
+    std::mutex mt;
+    std::string content("This is a log recorded by thread ");
     
+    // start threads and record a bunch of logs
+    for (int i = 0; i < thread_num; i++) {
+        std::thread thd([&](int thd_num) {
+            // wait for the completion of the creation of threads
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::string log_content(content);
+            log_content.append(std::to_string(thd_num));
+
+            for (int i = 0; i < log_num; i++) {
+                X_LOG(xLog::LogLevel::DEBUG, log_content.c_str());
+            }
+
+            std::lock_guard lg(mt);
+            finish_num++;
+            cond.notify_one();
+        }, i);
+        
+        threads.push_back(std::move(thd));
+    }
+
+    // wait for threads
+    std::unique_lock<std::mutex> ul(mt);
+    cond.wait(ul, [&] { return thread_num == finish_num; });
+
+    for (auto &thread : threads) {
+        thread.join();
+    }
+
+    // ensure the content has been written into the file
+    xLog::Flush();
+
+    // Here we simply check the correctness of the number of the logs and logs' format
+    std::vector<std::string> lines;
+    GetAllLogs(lines, file_io_);
+
+    bool ok = true;
+    size_t total_log_num = log_num * thread_num;
+    if (lines.size() != total_log_num) {
+        ok = false;
+    }
+
+    for (size_t i = 0; i < total_log_num && ok; i++) {
+        if (!CheckFormat(lines[i].c_str())) {
+            ok = false;
+        }
+    }
+    EXPECT_TRUE(ok);
+    // remove(log_file);
 }
 
 } // namespace basic_test
