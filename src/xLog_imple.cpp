@@ -88,7 +88,6 @@ void XLog::Flush() {
     if (xlog_singleton_.output_bf_offset_ > 0) {
         xlog_singleton_.file_io_.write(xlog_singleton_.output_buffer_, xlog_singleton_.output_bf_offset_);
         xlog_singleton_.output_bf_offset_ = 0;
-
     }
     
     if (IsIOFail(xlog_singleton_.file_io_)) {
